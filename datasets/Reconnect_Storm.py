@@ -18,13 +18,11 @@ def make_client_id(device_base: str, index: int,
 
 class ReconnectStormAttackTLS:
     def __init__(self, broker_host="localhost", broker_port=8883,
-                 ca_certs=None, client_cert=None, client_key=None, insecure=False,
+                 ca_certs="certs/ca-cert.pem", insecure=False,
                  use_tls: bool | None = None):
         self.broker_host = broker_host
         self.broker_port = broker_port
         self.ca_certs = ca_certs
-        self.client_cert = client_cert
-        self.client_key = client_key
         self.insecure = insecure
 
         # decide TLS usage: explicit override or auto (port-based)
@@ -52,9 +50,7 @@ class ReconnectStormAttackTLS:
         if not self.use_tls:
             print("=" * 60)
             return
-        print(f"  Using CA file: {self.ca_certs or 'None'} -> {'FOUND' if (self.ca_certs and os.path.exists(self.ca_certs)) else 'MISSING or using system CA'}")
-        print(f"  Client cert: {self.client_cert or 'None'} -> {'FOUND' if (self.client_cert and os.path.exists(self.client_cert)) else 'MISSING'}")
-        print(f"  Client key : {self.client_key or 'None'} -> {'FOUND' if (self.client_key and os.path.exists(self.client_key)) else 'MISSING'}")
+        print(f"  Using CA file (Default): {self.ca_certs} -> {'FOUND' if (self.ca_certs and os.path.exists(self.ca_certs)) else 'MISSING or using system CA'}")
         print(f"  Insecure mode (skip verification): {self.insecure}")
         print("=" * 60)
 
@@ -68,24 +64,17 @@ class ReconnectStormAttackTLS:
                     client.username_pw_set(username, password)
                 return client
 
-            # TLS enabled: use provided CA if available, otherwise create context
+            # TLS enabled: use provided CA if available
             if self.ca_certs and os.path.exists(self.ca_certs):
                 client.tls_set(
                     ca_certs=self.ca_certs,
-                    certfile=self.client_cert if (self.client_cert and os.path.exists(self.client_cert)) else None,
-                    keyfile=self.client_key if (self.client_key and os.path.exists(self.client_key)) else None,
                     cert_reqs=ssl.CERT_REQUIRED,
                     tls_version=ssl.PROTOCOL_TLS_CLIENT,
                     ciphers=None
                 )
             else:
+                # Fallback: create default context (system CA)
                 ctx = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
-                # load client cert/key if provided
-                if self.client_cert and self.client_key and os.path.exists(self.client_cert) and os.path.exists(self.client_key):
-                    try:
-                        ctx.load_cert_chain(certfile=self.client_cert, keyfile=self.client_key)
-                    except Exception as e:
-                        print(f"  Warning: failed to load client cert/key: {e}")
                 if self.insecure:
                     ctx.check_hostname = False
                     ctx.verify_mode = ssl.CERT_NONE
@@ -335,7 +324,7 @@ class ReconnectStormAttackTLS:
             print(f"Reconnects per second: {self.attack_stats['reconnect_attempts']/duration:.1f}")
 
 def main():
-    parser = argparse.ArgumentParser(description="MQTT Reconnect Storm Attack (TLS)")
+    parser = argparse.ArgumentParser(description="MQTT Reconnect Storm Attack (TLS - CA Hardcoded)")
     parser.add_argument("--broker", default="localhost", help="MQTT broker host")
     parser.add_argument("--port", type=int, default=8883, help="MQTT broker port")
     parser.add_argument("--type", choices=["storm", "rapid", "burst"], default="storm", help="Attack type")
@@ -351,10 +340,8 @@ def main():
     parser.add_argument("--username", help="MQTT username for authentication")
     parser.add_argument("--password", help="MQTT password for authentication")
 
-    # TLS/CA options (added)
-    parser.add_argument("--ca", help="Path to CA certificate file (PEM) to validate broker certificate")
-    parser.add_argument("--client-cert", help="Path to client certificate (PEM) for mutual TLS")
-    parser.add_argument("--client-key", help="Path to client private key (PEM) for mutual TLS")
+    
+    parser.add_argument("--ca", default="certs/ca-cert.pem", help="Path to CA certificate file (Default: certs/ca-cert.pem)")
     parser.add_argument("--insecure", action="store_true", help="Skip TLS certificate validation (testing only)")
     parser.add_argument("--no-tls", action="store_true", help="Force plain TCP (no TLS)")
     parser.add_argument("--tls", action="store_true", help="Force TLS even on default plaintext ports")
@@ -373,8 +360,6 @@ def main():
         broker_host=args.broker,
         broker_port=args.port,
         ca_certs=args.ca,
-        client_cert=args.client_cert,
-        client_key=args.client_key,
         insecure=args.insecure,
         use_tls=use_tls
     )
