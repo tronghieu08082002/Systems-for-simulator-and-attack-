@@ -157,7 +157,7 @@ mqtt-ids-project/
 
 ## 📊 Kết quả đánh giá
 
-- **Rule-based Detection**: Phát hiện 100% Flood, Malformed Data, Reconnect Storm (<1s).  
+- **Rule-based Detection**: Phát hiện 97% Flood, Malformed Data, Reconnect Storm (<1s).  
 - **Machine Learning**: Random Forest phát hiện Slow Brute-force & SlowITe với độ chính xác >95%.  
 - **Dashboard**: Hiển thị cảnh báo thời gian thực.
 
