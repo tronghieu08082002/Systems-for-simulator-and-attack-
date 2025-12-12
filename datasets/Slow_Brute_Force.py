@@ -186,7 +186,7 @@ class SingleUserBruteForceAttack:
             if self.cracked_password:
                 return True
                 
-            client_id = f"attack_{username}"
+            client_id = f"attack_{username}_{password_idx}_{os.getpid()}"
             
             try:
                 client = self.create_client(client_id, username, password)
@@ -372,3 +372,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
