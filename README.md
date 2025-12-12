@@ -150,7 +150,7 @@ python topic_enumeration.py \
   --password 123
 
 2️⃣ Brute Force (Fast)
-python brute_force_exploit1.py \
+python Brute_Force.py \
   --broker 10.12.112.191 \
   --port 8883 \
   --target-username admin \
