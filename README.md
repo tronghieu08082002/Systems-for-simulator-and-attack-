@@ -5,6 +5,7 @@ Hệ thống phát hiện xâm nhập cho mạng IoT sử dụng giao thức MQT
 Đồ án này xây dựng một hệ thống phát hiện xâm nhập (IDS) lai (Hybrid IDS) dành cho môi trường nhà máy thông minh (Smart Factory) sử dụng giao thức MQTT. Hệ thống kết hợp giữa Rule-based Detection (phát hiện dựa trên luật) cho các tấn công đã biết và Machine Learning (Random Forest) để phát hiện các tấn công tinh vi, chậm hoặc chưa biết.
 
 Các phân hệ trong Smart Factory giả lập:
+
 Office & IT
 
 Production Floor (Dây chuyền sản xuất, cảm biến rung, nhiệt độ...)
@@ -16,13 +17,14 @@ Security & Safety (Báo cháy, cửa từ...)
 Smart Storage (Kho bãi thông minh)
 
 🏗 Kiến trúc hệ thống
+
 Luồng dữ liệu hoạt động như sau:
 
 IoT Simulation: Các script replayer phát lại dữ liệu thực tế từ các file CSV (datasets) lên MQTT Broker qua kết nối TLS an toàn.
 
 Attacker: Các script tấn công giả lập 11 loại tấn công khác nhau nhắm vào Broker.
 
-Traffic Capture: Suricata/Tcpdump bắt gói tin và chuyển tiếp qua Flow Forwarder.
+Traffic Capture: Suricata bắt gói tin và chuyển tiếp qua Flow Forwarder.
 
 Storage: Dữ liệu Flow metadata được lưu trữ vào InfluxDB.
 
@@ -54,18 +56,18 @@ pip install -r requirements.txt
 Đảm bảo thư mục certs/ nằm trong thư mục gốc của dự án và chứa file ca-cert.pem hợp lệ để kết nối tới Broker.
 
 🚀 Hướng dẫn chạy Giả lập (Simulation)
+
 Hệ thống sử dụng các bộ dữ liệu CSV thực tế để giả lập hoạt động của hàng trăm thiết bị IoT trong nhà máy.
 
 1. Chạy Zone Production
+
 Giả lập các cảm biến rung, bảo trì dự đoán, hệ thống thủy lực...
 
-
-
 python replayer_production.py --indir datasets --broker 10.12.112.191 --port 8883
+
 2. Chạy Zone Energy
+
 Giả lập hệ thống làm mát (Cooler), quạt (Fan), cảm biến chuyển động...
-
-
 
 python replayer_energy.py --indir datasets --broker 10.12.112.191 --port 8883
 
