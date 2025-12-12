@@ -9,7 +9,6 @@ import sys
 import os
 
 """
-slwit.py (Updated - CA Hardcoded)
 ==================
 Simulate a SlowITe (Slow DoS) attack for IDS testing.
 Updates:
