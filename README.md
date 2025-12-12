@@ -1,264 +1,166 @@
-# MQTT-based Intrusion Detection System for IoT Networks
+MQTT-based Intrusion Detection System for IoT Networks
+Hệ thống phát hiện xâm nhập cho mạng IoT sử dụng giao thức MQTT
 
-## 📌 Thông tin đồ án
+📖 Giới thiệu
+Đồ án này xây dựng một hệ thống phát hiện xâm nhập (IDS) lai (Hybrid IDS) dành cho môi trường nhà máy thông minh (Smart Factory) sử dụng giao thức MQTT. Hệ thống kết hợp giữa Rule-based Detection (phát hiện dựa trên luật) cho các tấn công đã biết và Machine Learning (Random Forest) để phát hiện các tấn công tinh vi, chậm hoặc chưa biết.
 
-* **Tên đề tài**: Xây dựng hệ thống phát hiện xâm nhập (IDS) cho mạng IoT sử dụng giao thức MQTT
-* **Loại đồ án**: Đồ án tốt nghiệp
-* **Hướng tiếp cận**: Rule-based IDS kết hợp Machine Learning (Random Forest)
-* **Ngữ cảnh ứng dụng**: Nhà máy thông minh (Smart Factory) với nhiều khu vực (Office, Production, Energy, Security, Storage)
+Các phân hệ trong Smart Factory giả lập:
+Office & IT
 
----
+Production Floor (Dây chuyền sản xuất, cảm biến rung, nhiệt độ...)
 
-## 📖 Mục lục
+Energy Management (Quản lý năng lượng, HVAC...)
 
-1. Giới thiệu chung
-2. Kiến trúc hệ thống
-3. Mô hình dữ liệu & Pipeline xử lý
-4. Các loại tấn công được mô phỏng
-5. Rule-based IDS
-6. Machine Learning IDS
-7. Hướng dẫn cài đặt & triển khai
-8. Hướng dẫn chạy mô phỏng tấn công
-9. Testing & Evaluation
-10. Demo & Dashboard
-11. Cấu trúc thư mục
-12. Hạn chế & hướng phát triển
+Security & Safety (Báo cháy, cửa từ...)
 
----
+Smart Storage (Kho bãi thông minh)
 
-## 1. Giới thiệu chung
+🏗 Kiến trúc hệ thống
+Luồng dữ liệu hoạt động như sau:
 
-Trong bối cảnh IoT ngày càng phổ biến trong công nghiệp, giao thức MQTT được sử dụng rộng rãi do tính nhẹ và hiệu quả. Tuy nhiên, MQTT thiếu cơ chế bảo mật tích hợp mạnh, khiến hệ thống dễ bị tấn công.
+IoT Simulation: Các script replayer phát lại dữ liệu thực tế từ các file CSV (datasets) lên MQTT Broker qua kết nối TLS an toàn.
 
-Đồ án này đề xuất một **hệ thống IDS cho MQTT IoT**, kết hợp:
+Attacker: Các script tấn công giả lập 11 loại tấn công khác nhau nhắm vào Broker.
 
-* **Rule-based detection**: Phát hiện tấn công rõ ràng, tức thời
-* **Machine Learning (Random Forest)**: Phát hiện các tấn công chậm, tinh vi
+Traffic Capture: Suricata/Tcpdump bắt gói tin và chuyển tiếp qua Flow Forwarder.
 
----
+Storage: Dữ liệu Flow metadata được lưu trữ vào InfluxDB.
 
-## 2. Kiến trúc hệ thống
+Detection Engine:
 
-### 2.1 Tổng quan kiến trúc
+Rule Engine: Kiểm tra các ngưỡng (Threshold) và mẫu (Signature).
 
-Hệ thống gồm các thành phần chính:
+ML Engine: Mô hình Random Forest phân tích hành vi bất thường.
 
-* MQTT Broker (TLS)
-* IoT Device Simulator (≈300 thiết bị)
-* Attack Generator (11 loại tấn công)
-* Suricata (Network IDS)
-* MQTT Flow Forwarder
-* InfluxDB
-* Rule Engine
-* ML Engine (Random Forest)
-* Dashboard + Email Alert
+Alerting: Gửi cảnh báo qua Dashboard/Email.
 
-### 2.2 Luồng dữ liệu
+⚙️ Cài đặt môi trường
+1. Yêu cầu hệ thống
+OS: Ubuntu 20.04+ (Khuyến nghị) hoặc Windows.
 
-```
-IoT Devices / Attacker
-        ↓
-   MQTT Broker (TLS)
-        ↓
-     Suricata
-        ↓
-  Flow Forwarder
-        ↓
-     InfluxDB
-        ↓
- Rule Engine / ML Engine
-        ↓
- Dashboard + Email Alert
-```
+Python: 3.9 trở lên.
 
----
+MQTT Broker: EMQX hoặc Mosquitto (đã cấu hình TLS port 8883).
 
-## 3. Mô hình dữ liệu & Pipeline xử lý
+2. Cài đặt thư viện
+Bash
 
-### 3.1 MQTT Flow-based Schema
-
-Thay vì lưu toàn bộ packet-level log, hệ thống chỉ giữ **flow metadata**, bao gồm:
-
-* client_id
-* username
-* mqtt_type (connect, publish, subscribe, disconnect)
-* topic
-* qos, retain
-* payload_len
-* return_code
-* timestamp
-
-➡️ Giảm tải dữ liệu >60%, phù hợp triển khai thực tế.
-
----
-
-## 4. Các loại tấn công được mô phỏng (11 attacks)
-
-### 4.1 Rule-based Attacks (8 loại)
-
-1. Publish Flood
-2. Payload Anomaly (Oversized Payload)
-3. Retain & QoS Abuse
-4. Topic Enumeration
-5. Wildcard Subscription Abuse
-6. Reconnect Storm
-7. Brute-force Login
-8. Duplicate Client ID
-
-### 4.2 ML-based Attacks (3 loại)
-
-9. Slow Brute-force
-10. Rotating Brute-force
-11. SlowITE (Low-rate Intelligent Attack)
-
----
-
-## 5. Rule-based IDS
-
-### 5.1 Nguyên lý
-
-Rule engine phân tích dữ liệu trong sliding window (time-based) và so sánh với các ngưỡng xác định trước.
-
-### 5.2 Ví dụ Rule
-
-* **Publish Flood**: Số lượng publish > ngưỡng trong 1 cửa sổ thời gian
-* **Reconnect Storm**: connect/disconnect liên tục trong thời gian ngắn
-* **Payload Anomaly**: payload_len vượt ngưỡng cho phép
-
-### 5.3 Ưu điểm
-
-* Phát hiện nhanh
-* Dễ giải thích
-* Phù hợp tấn công rõ ràng
-
----
-
-## 6. Machine Learning IDS
-
-### 6.1 Mô hình sử dụng
-
-* **Random Forest Classifier**
-
-### 6.2 Feature chính
-
-* publish_rate
-* avg_payload_len
-* connect_fail_ratio
-* session_duration
-* topic_entropy
-
-### 6.3 Vai trò
-
-ML được dùng để phát hiện:
-
-* Tấn công chậm
-* Tấn công bắt chước hành vi thiết bị hợp lệ
-
----
-
-## 7. Hướng dẫn cài đặt & triển khai
-
-### 7.1 Yêu cầu hệ thống
-
-* Ubuntu 20.04+
-* Docker & Docker Compose
-* Python 3.9+
-
-### 7.2 Cài đặt
-
-```bash
-git clone <repo_url>
-cd mqtt-ids
 pip install -r requirements.txt
-```
+(Yêu cầu các thư viện chính: pandas, paho-mqtt, scikit-learn, influxdb-client, v.v.)
 
-### 7.3 Chạy hệ thống
+3. Chuẩn bị Chứng chỉ (TLS)
+Đảm bảo thư mục certs/ nằm trong thư mục gốc của dự án và chứa file ca-cert.pem hợp lệ để kết nối tới Broker.
 
-```bash
-docker-compose up -d
-```
+🚀 Hướng dẫn chạy Giả lập (Simulation)
+Hệ thống sử dụng các bộ dữ liệu CSV thực tế để giả lập hoạt động của hàng trăm thiết bị IoT trong nhà máy.
 
----
+1. Chạy Zone Production
+Giả lập các cảm biến rung, bảo trì dự đoán, hệ thống thủy lực...
 
-## 8. Hướng dẫn chạy mô phỏng tấn công
+Bash
 
-### 8.1 Ví dụ: Publish Flood
+python replayer_production.py --indir datasets --broker 10.12.112.191 --port 8883
+2. Chạy Zone Energy
+Giả lập hệ thống làm mát (Cooler), quạt (Fan), cảm biến chuyển động...
 
-```bash
-python publish_flood.py --broker <IP> --port 8883
-```
+Bash
 
-### 8.2 Ví dụ: Slow Brute-force
+python replayer_energy.py --indir datasets --broker 10.12.112.191 --port 8883
+⚔️ Hướng dẫn chạy Tấn công (Attacks)
+Bộ công cụ bao gồm 11 loại tấn công được chia thành 2 nhóm chính. Lưu ý: Các script này đã được cấu hình mặc định sử dụng TLS với CA certificate tại certs/ca-cert.pem.
 
-```bash
-python slow_brute_force.py --target-username sensor_01
-```
+Nhóm 1: Rule-based Detectable Attacks (Tấn công nhanh/rõ ràng)
+1. Topic Enumeration (Dò quét Topic) Attacker cố gắng đăng ký nhiều topic để dò tìm cấu trúc mạng.
 
-➡️ Mỗi script tấn công có thể chạy độc lập.
+Bash
 
----
+python Topic_Enumeration.py --broker 10.12.112.191 --port 8883 --username attacker --password 123
+2. Brute Force (Dò mật khẩu nhanh) Tấn công đăng nhập liên tục với tốc độ cao.
 
-## 9. Testing & Evaluation
+Bash
 
-### 9.1 Testing Rule-based
+python Brute_Force.py --broker 10.12.112.191 --port 8883 --target-username "admin" --tls
+3. Duplicate Client ID (Trùng lặp ID) Ngắt kết nối thiết bị hợp lệ bằng cách sử dụng Client ID của nạn nhân.
 
-* Test online
-* Mỗi đợt test 1 loại tấn công
-* Traffic thật + traffic tấn công
+Bash
 
-### 9.2 Chỉ số đánh giá
+python Duplicate_id.py --broker 10.12.112.191 --port 8883 --client-id "target_device" --username attacker --password 123
+4. Flooding DoS (Tấn công tràn ngập) Spam hàng nghìn tin nhắn rác làm quá tải Broker.
 
-* Detection Rate
-* False Positive Rate
-* CPU / RAM usage
-* Alert Latency
+Bash
 
----
+python Flooding_DoS.py --broker 10.12.112.191 --port 8883 --workers 10 --messages 2000 --topics "factory/sensor/temp" --username attacker --password 123
+5. Malformed Data (Dữ liệu sai lệch) Gửi payload sai định dạng hoặc quá khổ (Oversized payload).
 
-## 10. Demo & Dashboard
+Bash
 
-* Dashboard hiển thị:
+python Malformed_Data.py --broker 10.12.112.191 --port 8883 --username attacker --password 123
+6. Reconnect Storm (Bão kết nối) Có 3 chế độ tấn công:
 
-  * Alert theo thời gian
-  * Phân loại attack
-  * Client bị nghi ngờ
-* Email alert khi phát hiện tấn công nghiêm trọng
+Storm: Kết nối/ngắt ngẫu nhiên gây nhiễu loạn.
 
----
+Bash
 
-## 11. Cấu trúc thư mục
+python Reconnect_Storm.py --broker 10.12.112.191 --port 8883 --type storm --workers 10 --reconnects 100 --username attacker --password 123
+Rapid: Kết nối/ngắt tốc độ cao để spam CPU (TLS Handshake).
 
-```
-├── attack_scripts/
-├── rule_engine/
-├── ml_engine/
-├── forwarder/
-├── docker-compose.yml
-├── requirements.txt
-└── README.md
-```
+Bash
 
----
+python Reconnect_Storm.py --broker 10.12.112.191 --port 8883 --type rapid --workers 20 --duration 60 --username attacker --password 123
+Burst: Dồn dập kết nối đồng thời (Thundering Herd).
 
-## 12. Hạn chế & hướng phát triển
+Bash
 
-### 12.1 Hạn chế
+python Reconnect_Storm.py --broker 10.12.112.191 --port 8883 --type burst --workers 5 --burst-size 50 --num-bursts 20 --username attacker --password 123
+7. Retain & QoS Abuse Lạm dụng tin nhắn Retained hoặc QoS cấp cao để gây quá tải bộ nhớ/CPU.
 
-* Dataset chưa phản ánh 100% môi trường thực
-* ML chưa được huấn luyện online
+Bash
 
-### 12.2 Hướng phát triển
+python Retain_Qos_Abuse.py --broker 10.12.112.191 --port 8883 --type mixed --username giamdoc --password 123
+8. Wildcard Subscription Abuse Đăng ký các topic wildcard (#) để nghe lén toàn bộ hệ thống.
 
-* Online learning
-* Federated IDS
-* Triển khai edge-level IDS
+Bash
 
----
+python Wildcard_Abuse.py --broker 10.12.112.191 --port 8883 --workers 5 --username attacker --password 123
+Nhóm 2: ML-based Detectable Attacks (Tấn công chậm/tinh vi)
+9. Rotating Brute Force Thay đổi Client ID liên tục để tránh bị block IP/ID khi dò mật khẩu.
 
-## ✅ Kết luận
+Bash
 
-Đồ án đã xây dựng thành công một **IDS cho MQTT IoT** có khả năng phát hiện đa dạng tấn công với chi phí tài nguyên thấp, phù hợp triển khai thực tế trong nhà máy thông minh.
+python Rotating_Brute_Force.py --broker 10.12.112.191 --port 8883 --target-username "admin" --tls
+10. Slow Brute Force Dò mật khẩu với tốc độ rất chậm (Low-rate) để lẩn tránh các luật dựa trên ngưỡng thời gian.
 
----
+Bash
 
-📎 *Tài liệu này dùng để nộp kèm source code đồ án.*
+python Slow_Brute_Force.py --broker 10.12.112.191 --port 8883 --target-username "admin" --tls
+11. SlowITe (Slow DoS) Chiếm dụng kết nối bằng cách gửi Keep-Alive cực lớn và giữ kết nối mở (Zombie mode) để làm cạn kiệt slot kết nối của Broker.
+
+Bash
+
+python Slwit.py --host 10.12.112.191 --port 8883 --clients 50 --zombie --tls --username attacker --password 123
+🛡️ Hướng dẫn vận hành IDS
+1. Khởi động Log & Forwarder
+Đảm bảo Suricata đang chạy và log đang được đẩy vào InfluxDB thông qua script forwarder.
+
+2. Khởi động Detection Engine
+Chạy engine chính để bắt đầu phân tích lưu lượng:
+
+Bash
+
+# Ví dụ (cần trỏ đúng file main của IDS)
+python ids_main.py --mode hybrid
+Hệ thống sẽ tải Rule-set và Model Random Forest đã huấn luyện để bắt đầu giám sát.
+
+3. Giám sát
+Truy cập Dashboard (Grafana/Web Interface) để xem các cảnh báo theo thời gian thực.
+
+📂 Cấu trúc thư mục
+mqtt-ids-project/
+├── attack_scripts/          # Chứa 11 scripts tấn công (Slwit, Flood, etc.)
+├── certs/                   # Chứa CA certificate (ca-cert.pem)
+├── datasets/                # Chứa file CSV dữ liệu sensor (Gửi kèm)
+├── replayer_energy.py       # Script giả lập phân khu năng lượng
+├── replayer_production.py   # Script giả lập phân khu sản xuất
+├── ids_engine/              # Source code Rule Engine & ML Engine
+├── requirements.txt         # Các thư viện cần thiết
+└── README.md                # Tài liệu hướng dẫn này
