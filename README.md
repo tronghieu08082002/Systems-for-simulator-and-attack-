@@ -2,6 +2,7 @@ MQTT-based Intrusion Detection System for IoT Networks
 
 Hệ thống phát hiện xâm nhập cho mạng IoT sử dụng giao thức MQTT
 
+
 📌 Thông tin chung
 
 Tên đề tài: MQTT-based Intrusion Detection System for IoT Networks
@@ -12,6 +13,7 @@ Giao thức giám sát: MQTT over TLS
 
 Môi trường triển khai: Smart Factory (Industrial IoT)
 
+
 Mục tiêu chính:
 
 Phát hiện các tấn công MQTT phổ biến
@@ -19,6 +21,7 @@ Phát hiện các tấn công MQTT phổ biến
 Phát hiện các tấn công chậm, tinh vi
 
 Tối ưu tài nguyên (CPU, RAM, Storage)
+
 
 📖 1. Giới thiệu
 
@@ -40,6 +43,7 @@ Rule-based Detection → phát hiện nhanh, rõ ràng
 
 Machine Learning (Random Forest) → phát hiện hành vi bất thường
 
+
 🏭 2. Mô hình Smart Factory giả lập
 
 Hệ thống mô phỏng ≈300 thiết bị IoT thuộc nhiều phân khu:
@@ -51,7 +55,9 @@ Energy	HVAC, quạt, làm mát
 Security	Báo cháy, cửa từ, camera
 Storage	Kho thông minh, môi trường
 
+
 ➡️ Mỗi zone có đặc tính traffic khác nhau, giúp IDS được đánh giá thực tế.
+
 
 🏗 3. Kiến trúc hệ thống
 IoT Replayer / Attacker
@@ -68,7 +74,10 @@ IoT Replayer / Attacker
           ↓
  Dashboard (Grafana) + Email Alert
 
+
 🧠 4. Triết lý thiết kế (RẤT QUAN TRỌNG)
+
+
 4.1 Vì sao không phân tích payload?
 
 Payload MQTT có thể:
@@ -85,7 +94,9 @@ Tốn CPU
 
 Tăng False Positive
 
+
 ➡️ Hệ thống chỉ phân tích Flow Metadata, gồm:
+
 
 client_id, username, mqtt_type,
 topic, qos, retain,
@@ -94,7 +105,10 @@ payload_length, return_code, timestamp
 
 ➡️ Giảm >60% dung lượng, phù hợp chạy 24/7.
 
+
 ⚙️ 5. Cài đặt môi trường
+
+
 5.1 Yêu cầu hệ thống
 
 OS: Ubuntu 20.04+ (khuyến nghị)
@@ -105,8 +119,10 @@ MQTT Broker: EMQX hoặc Mosquitto
 
 TLS: Port 8883
 
+
 5.2 Cài thư viện
 pip install -r requirements.txt
+
 
 5.3 Chuẩn bị TLS
 certs/
@@ -115,20 +131,26 @@ certs/
 
 👉 Tất cả script đều mặc định dùng TLS.
 
+
 🚀 6. Chạy giả lập IoT (REPLAYER)
+
+
 6.1 Production Zone
+
 python replayer_production.py \
   --indir datasets \
   --broker 10.12.112.191 \
   --port 8883
 
 6.2 Energy Zone
+
 python replayer_energy.py \
   --indir datasets \
   --broker 10.12.112.191 \
   --port 8883
 
 6.3 Office Zone
+
 python replayer_office.py \
   --indir datasets \
   --broker 10.12.112.191 \
@@ -137,17 +159,21 @@ python replayer_office.py \
 
 ➡️ Có thể chạy song song nhiều zone.
 
+
 ⚔️ 7. Chạy tấn công (11 ATTACKS)
 
 ⚠️ Chỉ chạy trong môi trường lab
 
 🔴 Nhóm 1 – Rule-based Detectable Attacks (8 loại)
+
+
 1️⃣ Topic Enumeration
 python topic_enumeration.py \
   --broker 10.12.112.191 \
   --port 8883 \
   --username attacker \
   --password 123
+
 
 2️⃣ Brute Force (Fast)
 python Brute_Force.py \
@@ -164,6 +190,7 @@ python duplicate_id.py \
   --username attacker \
   --password 123
 
+
 4️⃣ Publish Flood (DoS)
 python publish_flood.py \
   --broker 10.12.112.191 \
@@ -171,10 +198,12 @@ python publish_flood.py \
   --workers 10 \
   --messages 2000
 
+
 5️⃣ Payload Anomaly (Oversized)
 python payload_anomaly.py \
   --broker 10.12.112.191 \
   --port 8883
+
 
 6️⃣ Reconnect Storm
 
@@ -192,6 +221,7 @@ Burst
 
 python reconnect_storm.py --type burst --burst-size 50 --num-bursts 20
 
+
 7️⃣ Retain & QoS Abuse
 python retain_qos_abuse.py \
   --broker 10.12.112.191 \
@@ -203,13 +233,17 @@ python wildcard_abuse.py \
   --port 8883 \
   --workers 5
 
+
 🟠 Nhóm 2 – ML-based Attacks (3 loại)
+
+
 9️⃣ Rotating Brute Force
 python slow_brute_force.py \
   --broker 10.12.112.191 \
   --port 8883 \
   --target-username admin \
   --tls
+
 
 🔟 Slow Brute Force
 python slow_brute_force.py \
@@ -218,6 +252,7 @@ python slow_brute_force.py \
   --target-username admin \
   --packets-per-minute 4 \
   --tls
+
 
 1️⃣1️⃣ SlowITe (Slow DoS)
 python slowite.py \
@@ -237,6 +272,7 @@ Forwarder đang ghi vào InfluxDB
 8.2 Chạy IDS Engine
 python ids_main.py --mode hybrid
 
+
 📊 9. Dashboard & Alert
 
 Dashboard (Grafana):
@@ -255,15 +291,26 @@ Brute force
 
 Reconnect storm
 
+
 📂 10. Cấu trúc thư mục
+
+
 mqtt-ids-project/
+
 ├── attack_scripts/
+
 ├── certs/
+
 ├── datasets/
+
 ├── replayer_*.py
+
 ├── ids_engine/
+
 ├── requirements.txt
+
 └── README.md
+
 
 📉 11. Hạn chế
 
@@ -272,6 +319,7 @@ Dataset mô phỏng
 ML offline
 
 Chưa có IPS tự động block
+
 
 🚀 12. Hướng phát triển
 
@@ -283,6 +331,7 @@ Federated IDS
 
 IDS + IPS
 
+
 ✅ 13. Kết luận
 
 Hệ thống chứng minh rằng Hybrid IDS cho MQTT IoT có thể:
@@ -292,6 +341,7 @@ Phát hiện đa dạng tấn công
 Giảm tài nguyên đáng kể
 
 Phù hợp triển khai Smart Factory thực tế
+
 
 ⚠️ Lưu ý pháp lý
 
