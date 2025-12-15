@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 def make_client_id(device_base: str, index: int,
                    prefix: str = "retain", suffix: str = "qos_replayer",
                    sep: str = "-") -> str:
-    # Logic tạo ID giữ nguyên
+   
     return f"{prefix}{sep}{suffix}"
 
 class RetainQoSAbuseAttackTLS:
@@ -367,7 +367,7 @@ def main():
     parser.add_argument("--username", help="MQTT username for authentication")
     parser.add_argument("--password", help="MQTT password for authentication")
     
-    # Gán cứng mặc định cho CA
+   
     parser.add_argument("--ca", default="certs/ca-cert.pem", help="Path to CA certificate file (Default: certs/ca-cert.pem)")
 
     args = parser.parse_args()
@@ -390,3 +390,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
